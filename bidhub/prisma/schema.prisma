@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  auctions      Auction[]              @relation("SellerAuctions")
+  bids          Bid[]
+  refreshTokens RefreshToken[]
+  cancellations AuctionCancellation[]  @relation("AdminCancellations")
+
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  auctions Auction[]
+}
+
+model Auction {
+  id               String   @id @default(cuid())
+  title            String
+  description      String
+  imageUrl         String?
+  startingPrice    Decimal  @db.Decimal(12, 2)
+  minimumIncrement Decimal  @db.Decimal(12, 2)
+  startDate        DateTime @default(now())
+  endDate          DateTime
+  cancelledAt      DateTime?
+  sellerId         String
+  categoryId       String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  seller   User     @relation("SellerAuctions", fields: [sellerId], references: [id], onDelete: Restrict)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  bids         Bid[]
+  cancellation AuctionCancellation?
+
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([endDate])
+  @@index([cancelledAt])
+}
+
+model Bid {
+  id        String   @id @default(cuid())
+  amount    Decimal  @db.Decimal(12, 2)
+  auctionId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([auctionId, amount])
+  @@index([userId, createdAt])
+}
+
+model AuctionCancellation {
+  id        String   @id @default(cuid())
+  auctionId String   @unique
+  adminId   String
+  reason    String
+  createdAt DateTime @default(now())
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Restrict)
+  admin   User    @relation("AdminCancellations", fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([adminId, createdAt])
+}
